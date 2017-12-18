@@ -1,0 +1,4 @@
+CredentialsDropbox
+
+Version 0.1.0 (12/17/17)
+	* Initial release
