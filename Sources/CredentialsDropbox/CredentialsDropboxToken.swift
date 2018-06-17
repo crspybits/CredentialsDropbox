@@ -5,8 +5,6 @@ import KituraNet
 import LoggerAPI
 import Credentials
 
-import SwiftyJSON
-
 import Foundation
 
 // MARK CredentialsDropboxToken
@@ -85,7 +83,14 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
                     "account_id": accountId
                 ]
  
-                let body = try! JSON(dataToSend).rawData()
+                var body:Data!
+                do {
+                    body = try JSONSerialization.data(withJSONObject: dataToSend)
+                } catch (let error) {
+                    Log.error("Failed to serialize dataToSend: \(error)")
+                    onFailure(nil, nil)
+                    return
+                }
 
                 var headers = [String:String]()
                 let jsonMimeType = "application/json"
@@ -99,8 +104,8 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
                         do {
                             var body = Data()
                             try response.readAllData(into: &body)
-                            let jsonBody = JSON(data: body)
-                            if let dictionary = jsonBody.dictionaryObject,
+
+                            if let dictionary = try JSONSerialization.jsonObject(with: body, options: []) as? [String : Any],
                                 let userProfile = createUserProfile(from: dictionary, for: self.name) {
                                 if let delegate = self.delegate ?? options[CredentialsDropboxOptions.userProfileDelegate] as? UserProfileDelegate {
                                     delegate.update(userProfile: userProfile, from: dictionary)
