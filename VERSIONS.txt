@@ -1,4 +1,7 @@
 CredentialsDropbox
 
+Version 0.2.0 (6/18/18)
+	* Updating to current Kitura; dropped use of SwiftyJson as part of that.
+	
 Version 0.1.0 (12/17/17)
 	* Initial release
