@@ -21,6 +21,9 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
     public var redirecting: Bool {
         return false
     }
+    
+    /// The time in seconds since the user profile was generated that the access token will be considered valid.
+    public let tokenTimeToLive: TimeInterval?
 
     private var delegate: UserProfileDelegate?
     
@@ -32,8 +35,10 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
     /// Initialize a `CredentialsGoogleDropbox` instance.
     ///
     /// - Parameter options: A dictionary of plugin specific options. The keys are defined in `CredentialsGoogleOptions`.
-    public init(options: [String:Any]?=nil) {
+    /// - Parameter tokenTimeToLive: The time in seconds since the user profile was generated that the access token will be considered valid.
+    public init(options: [String:Any]?=nil, tokenTimeToLive: TimeInterval? = nil) {
         delegate = options?[CredentialsDropboxOptions.userProfileDelegate] as? UserProfileDelegate
+        self.tokenTimeToLive = tokenTimeToLive
     }
     
     /// User profile cache.
@@ -65,10 +70,20 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
                 #else
                     let key = token as NSString
                 #endif
-                let cacheElement = usersCache!.object(forKey: key)
-                if let cached = cacheElement {
-                    onSuccess(cached.userProfile)
-                    return
+                
+                if let cached = usersCache?.object(forKey: key) {
+                    if let ttl = tokenTimeToLive {
+                        if Date() < cached.createdAt.addingTimeInterval(ttl) {
+                            onSuccess(cached.userProfile)
+                            return
+                        }
+                        // If current time is later than time to live, continue to standard token authentication.
+                        // Don't need to evict token, since it will replaced if the token is successfully autheticated.
+                    } else {
+                        // No time to live set, use token until it is evicted from the cache
+                        onSuccess(cached.userProfile)
+                        return
+                    }
                 }
                 
                 // See https://www.dropbox.com/developers/documentation/http/documentation#users-get_account and https://github.com/kunalvarma05/dropbox-php-sdk/issues/76
