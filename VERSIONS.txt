@@ -1,5 +1,8 @@
 CredentialsDropbox
 
+Version 0.3.0 (2/24/19)
+	* Added Token Time To Live, based on Kitura Credentials implementation.
+
 Version 0.2.0 (6/18/18)
 	* Updating to current Kitura; dropped use of SwiftyJson as part of that.
 	
