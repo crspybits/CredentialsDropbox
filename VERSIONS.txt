@@ -1,5 +1,8 @@
 CredentialsDropbox
 
+Version 0.4.0 (6/9/19)
+	* Updated to Swift 5
+
 Version 0.3.0 (2/24/19)
 	* Added Token Time To Live, based on Kitura Credentials implementation.
 
