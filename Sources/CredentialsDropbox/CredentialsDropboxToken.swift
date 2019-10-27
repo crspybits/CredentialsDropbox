@@ -10,8 +10,8 @@ import Foundation
 // MARK CredentialsDropboxToken
 
 /// Authentication using Dropbox OAuth2 token.
-public class CredentialsDropboxToken: CredentialsPluginProtocol {
-    
+public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsTokenTTL {
+
     /// The name of the plugin.
     public var name: String {
         return "DropboxToken"
@@ -26,6 +26,7 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
     public let tokenTimeToLive: TimeInterval?
 
     private var delegate: UserProfileDelegate?
+    private var accountId: String!
     
     /// A delegate for `UserProfile` manipulation.
     public var userProfileDelegate: UserProfileDelegate? {
@@ -62,95 +63,77 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol {
                              onFailure: @escaping (HTTPStatusCode?, [String:String]?) -> Void,
                              onPass: @escaping (HTTPStatusCode?, [String:String]?) -> Void,
                              inProgress: @escaping () -> Void) {
-        if let type = request.headers["X-token-type"], type == name {
-            if let token = request.headers["access_token"],
-                let accountId = request.headers["X-account-id"] {
-                #if os(Linux)
-                    let key = NSString(string: token)
-                #else
-                    let key = token as NSString
-                #endif
-                
-                if let cached = usersCache?.object(forKey: key) {
-                    if let ttl = tokenTimeToLive {
-                        if Date() < cached.createdAt.addingTimeInterval(ttl) {
-                            onSuccess(cached.userProfile)
-                            return
-                        }
-                        // If current time is later than time to live, continue to standard token authentication.
-                        // Don't need to evict token, since it will replaced if the token is successfully autheticated.
-                    } else {
-                        // No time to live set, use token until it is evicted from the cache
-                        onSuccess(cached.userProfile)
-                        return
-                    }
-                }
-                
-                // See https://www.dropbox.com/developers/documentation/http/documentation#users-get_account and https://github.com/kunalvarma05/dropbox-php-sdk/issues/76
-                
-                var requestOptions: [ClientRequest.Options] = []
-                requestOptions.append(.schema("https://"))
-                requestOptions.append(.hostname("api.dropboxapi.com"))
-                requestOptions.append(.method("POST"))
-                requestOptions.append(.path("/2/users/get_account"))
-
-                let dataToSend = [
-                    "account_id": accountId
-                ]
- 
-                var body:Data!
-                do {
-                    body = try JSONSerialization.data(withJSONObject: dataToSend)
-                } catch (let error) {
-                    Log.error("Failed to serialize dataToSend: \(error)")
-                    onFailure(nil, nil)
-                    return
-                }
-
-                var headers = [String:String]()
-                let jsonMimeType = "application/json"
-                headers["Accept"] = jsonMimeType
-                headers["Content-Type"] = jsonMimeType
-                headers["Authorization"] = "Bearer \(token)"
-                requestOptions.append(.headers(headers))
-                
-                let req = HTTP.request(requestOptions) { response in
-                    if let response = response, response.statusCode == HTTPStatusCode.OK {
-                        do {
-                            var body = Data()
-                            try response.readAllData(into: &body)
-
-                            if let dictionary = try JSONSerialization.jsonObject(with: body, options: []) as? [String : Any],
-                                let userProfile = createUserProfile(from: dictionary, for: self.name) {
-                                if let delegate = self.delegate ?? options[CredentialsDropboxOptions.userProfileDelegate] as? UserProfileDelegate {
-                                    delegate.update(userProfile: userProfile, from: dictionary)
-                                }
-
-                                let newCacheElement = BaseCacheElement(profile: userProfile)
-                                #if os(Linux)
-                                    let key = NSString(string: token)
-                                #else
-                                    let key = token as NSString
-                                #endif
-                                self.usersCache!.setObject(newCacheElement, forKey: key)
-                                onSuccess(userProfile)
-                                return
-                            }
-                        } catch {
-                            Log.error("Failed to read Dropbox response")
-                        }
-                    }
-                    onFailure(nil, nil)
-                }
-                req.write(from: body)
-                req.end()
-            }
-            else {
-                onFailure(nil, nil)
-            }
-        }
-        else {
+        
+        guard let type = request.headers["X-token-type"], type == name else {
             onPass(nil, nil)
+            return
         }
+        
+        guard let token = request.headers["access_token"],
+            let accountId = request.headers["X-account-id"] else {
+            onFailure(nil, nil)
+            return
+        }
+            
+        self.accountId = accountId
+        getProfileAndCacheIfNeeded(token: token, options: options, onSuccess: onSuccess, onFailure: onFailure)
+    }
+    
+    public func generateNewProfile(token: String, options: [String:Any], completion: @escaping (CredentialsTokenTTLResult) -> Void) {
+        // See (https://www.dropbox.com/developers/documentation/http/documentation#users-get_account and https://github.com/kunalvarma05/dropbox-php-sdk/issues/76)
+                
+        var requestOptions: [ClientRequest.Options] = []
+        requestOptions.append(.schema("https://"))
+        requestOptions.append(.hostname("api.dropboxapi.com"))
+        requestOptions.append(.method("POST"))
+        requestOptions.append(.path("/2/users/get_account"))
+
+        let dataToSend = [
+           "account_id": accountId
+        ]
+
+        var body:Data!
+        do {
+           body = try JSONSerialization.data(withJSONObject: dataToSend)
+        } catch (let error) {
+           Log.error("Failed to serialize dataToSend: \(error)")
+           completion(.error(error))
+           return
+        }
+
+        var headers = [String:String]()
+        let jsonMimeType = "application/json"
+        headers["Accept"] = jsonMimeType
+        headers["Content-Type"] = jsonMimeType
+        headers["Authorization"] = "Bearer \(token)"
+        requestOptions.append(.headers(headers))
+           
+        let req = HTTP.request(requestOptions) { response in
+            guard let response = response, response.statusCode == HTTPStatusCode.OK else {
+                completion(.failure(nil, nil))
+                return
+            }
+               
+            do {
+               var body = Data()
+               try response.readAllData(into: &body)
+
+               if let dictionary = try JSONSerialization.jsonObject(with: body, options: []) as? [String : Any],
+                   let userProfile = createUserProfile(from: dictionary, for: self.name) {
+                   
+                   if let delegate = self.delegate ?? options[CredentialsDropboxOptions.userProfileDelegate] as? UserProfileDelegate {
+                       delegate.update(userProfile: userProfile, from: dictionary)
+                   }
+
+                   completion(.success(userProfile))
+                   return
+               }
+            } catch {
+               Log.error("Failed to read Dropbox response")
+            }
+        } // end "let req"
+        
+        req.write(from: body)
+        req.end()
     }
 }
