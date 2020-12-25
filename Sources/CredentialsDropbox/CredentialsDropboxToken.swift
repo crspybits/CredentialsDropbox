@@ -109,11 +109,18 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
         requestOptions.append(.headers(headers))
            
         let req = HTTP.request(requestOptions) { response in
-            guard let response = response, response.statusCode == HTTPStatusCode.OK else {
+            guard let response = response else {
+                Log.error("Failed to get response.")
                 completion(.failure(nil, nil))
                 return
             }
-               
+
+            guard response.statusCode == HTTPStatusCode.OK else {
+                Log.error("Bad status code: \(response.statusCode); response: \(response)")
+                completion(.failure(nil, nil))
+                return
+            }
+            
             do {
                var body = Data()
                try response.readAllData(into: &body)
