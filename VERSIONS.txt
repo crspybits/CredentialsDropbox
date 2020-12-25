@@ -1,5 +1,8 @@
 CredentialsDropbox
 
+Version 0.4.2 (12/24/20)
+	* Added reference back to https://github.com/Kitura/Kitura-Credentials.git
+	
 Version 0.4.1 (12/24/20)
 	* Added logging.
 	
