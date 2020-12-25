@@ -1,5 +1,8 @@
 CredentialsDropbox
 
+Version 0.4.4 (12/24/20)
+	* More logging and improving error handling.
+	
 Version 0.4.3 (12/24/20)
 	* More logging and improving error handling.
 	

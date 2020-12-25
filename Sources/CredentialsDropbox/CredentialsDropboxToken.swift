@@ -122,7 +122,7 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
                try response.readAllData(into: &body)
                
                guard let dict = try JSONSerialization.jsonObject(with: body, options: []) as? [String : Any] else {
-                    Log.error("JSONSerialization failed.")
+                    Log.error("JSONSerialization.jsonObject failed.")
                     completion(.failure(nil, nil))
                     return
                }
@@ -130,6 +130,9 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
                responseDictionary = dict
             } catch let error {
                 Log.error("Could not decode response body.")
+                if let bodyString = String(data: body, encoding: .utf8) {
+                    Log.error("Response body as string: \(bodyString)")
+                }
                 completion(.error(error))
                 return
             }
