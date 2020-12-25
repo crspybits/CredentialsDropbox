@@ -115,29 +115,44 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
                 return
             }
 
+            let responseDictionary: [String : Any]
+            
+            do {
+               var body = Data()
+               try response.readAllData(into: &body)
+               
+               guard let dict = try JSONSerialization.jsonObject(with: body, options: []) as? [String : Any] else {
+                    Log.error("JSONSerialization failed.")
+                    completion(.failure(nil, nil))
+                    return
+               }
+               
+               responseDictionary = dict
+            } catch let error {
+                Log.error("Could not decode response body.")
+                completion(.error(error))
+                return
+            }
+            
+            Log.debug("responseDictionary: \(responseDictionary)")
+
             guard response.statusCode == HTTPStatusCode.OK else {
                 Log.error("Bad status code: \(response.statusCode); response: \(response)")
                 completion(.failure(nil, nil))
                 return
             }
             
-            do {
-               var body = Data()
-               try response.readAllData(into: &body)
-
-               if let dictionary = try JSONSerialization.jsonObject(with: body, options: []) as? [String : Any],
-                   let userProfile = createUserProfile(from: dictionary, for: self.name) {
-                   
-                   if let delegate = self.delegate ?? options[CredentialsDropboxOptions.userProfileDelegate] as? UserProfileDelegate {
-                       delegate.update(userProfile: userProfile, from: dictionary)
-                   }
-
-                   completion(.success(userProfile))
-                   return
-               }
-            } catch {
-               Log.error("Failed to read Dropbox response")
+            guard let userProfile = createUserProfile(from: responseDictionary, for: self.name) else {
+                Log.error("Could not create user profile.")
+                completion(.failure(nil, nil))
+                return
             }
+            
+            if let delegate = self.delegate ?? options[CredentialsDropboxOptions.userProfileDelegate] as? UserProfileDelegate {
+                delegate.update(userProfile: userProfile, from: responseDictionary)
+            }
+
+            completion(.success(userProfile))
         } // end "let req"
         
         req.write(from: body)
