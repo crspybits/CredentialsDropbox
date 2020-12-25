@@ -81,6 +81,7 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
     
     public func generateNewProfile(token: String, options: [String:Any], completion: @escaping (CredentialsTokenTTLResult) -> Void) {
         // See (https://www.dropbox.com/developers/documentation/http/documentation#users-get_account and https://github.com/kunalvarma05/dropbox-php-sdk/issues/76)
+        // Need scope: sharing.read
                 
         var requestOptions: [ClientRequest.Options] = []
         requestOptions.append(.schema("https://"))
@@ -92,9 +93,9 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
            "account_id": accountId
         ]
 
-        var body:Data!
+        var sendingBody:Data!
         do {
-           body = try JSONSerialization.data(withJSONObject: dataToSend)
+           sendingBody = try JSONSerialization.data(withJSONObject: dataToSend)
         } catch (let error) {
            Log.error("Failed to serialize dataToSend: \(error)")
            completion(.error(error))
@@ -129,10 +130,7 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
                
                responseDictionary = dict
             } catch let error {
-                Log.error("Could not decode response body.")
-                if let bodyString = String(data: body, encoding: .utf8) {
-                    Log.error("Response body as string: \(bodyString)")
-                }
+                Log.error("Could not decode response body; status code: \(response.statusCode)")
                 completion(.error(error))
                 return
             }
@@ -158,7 +156,7 @@ public class CredentialsDropboxToken: CredentialsPluginProtocol, CredentialsToke
             completion(.success(userProfile))
         } // end "let req"
         
-        req.write(from: body)
+        req.write(from: sendingBody)
         req.end()
     }
 }
