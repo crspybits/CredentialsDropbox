@@ -1,5 +1,9 @@
 CredentialsDropbox
 
+Version 0.4.5 (1/23/21)
+	* Beta testing for next server release.
+	* Improved readability. Fixed error. 
+
 Version 0.4.4 (12/24/20)
 	* More logging and improving error handling.
 	
